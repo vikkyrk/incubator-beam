@@ -138,6 +138,16 @@ examples:
 ---
 
 coder:
+  urn: "urn:beam:coders:stream:0.1"
+  components: [{urn: "urn:beam:coders:bytes:0.1"}]
+  non_deterministic: True
+examples:
+  "\u00ff\u00ff\u00ff\u00ff\u0001\u0003abc\u0000": ["abc"]
+  "\u00ff\u00ff\u00ff\u00ff\u0002\u0004ab\u0000c\u0004de\u0000f\u0000": ["ab\0c", "de\0f"]
+
+---
+
+coder:
   urn: "urn:beam:coders:global_window:0.1"
 examples:
   "": ""

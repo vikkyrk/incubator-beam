@@ -217,6 +217,7 @@ class CodersTest(unittest.TestCase):
         ((-2, 5), u'a\u0101' * 100),
         ((300, 1), 'abc\0' * 5))
 
+
   def test_tuple_sequence_coder(self):
     int_tuple_coder = coders.TupleSequenceCoder(coders.VarIntCoder())
     self.check_coder(int_tuple_coder, (1, -1, 0), (), tuple(range(1000)))
@@ -248,6 +249,39 @@ class CodersTest(unittest.TestCase):
         coders.TupleCoder((coders.VarIntCoder(),
                            coders.IterableCoder(coders.VarIntCoder()))),
         (1, [1, 2, 3]))
+
+  def test_iterable_coder_unknown_length(self):
+    def iter_generator(count):
+      for i in range(count):
+        yield i
+
+    def c_gen():
+      for a in ["ab\0c", "de\0f"]:
+        yield a
+
+    iterable_coder = coders.IterableCoder(coders.BytesCoder())
+    import json
+    print(json.dumps(iterable_coder.encode(c_gen()).decode('latin-1')))
+
+    iterable_coder = coders.IterableCoder(coders.VarIntCoder())
+    # Empty
+    self.assertItemsEqual(list(iter_generator(0)),
+                          iterable_coder.decode(
+                              iterable_coder.encode(iter_generator(0))))
+    # Single element
+    self.assertItemsEqual(list(iter_generator(1)),
+                          iterable_coder.decode(
+                              iterable_coder.encode(iter_generator(1))))
+    # Multiple elements
+    self.assertItemsEqual(list(iter_generator(100)),
+                          iterable_coder.decode(
+                              iterable_coder.encode(iter_generator(100))))
+
+    # Multiple elements with underlying stream buffer overflow.
+    self.assertItemsEqual(list(iter_generator(80000)),
+                          iterable_coder.decode(
+                              iterable_coder.encode(iter_generator(80000))))
+
 
   def test_windowed_value_coder(self):
     coder = coders.WindowedValueCoder(coders.VarIntCoder(),

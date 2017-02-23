@@ -519,15 +519,42 @@ class SequenceCoderImpl(StreamCoderImpl):
 
   def encode_to_stream(self, value, out, nested):
     # Compatible with Java's IterableLikeCoder.
-    out.write_bigendian_int32(len(value))
-    for elem in value:
-      self._elem_coder.encode_to_stream(elem, out, True)
+    if hasattr(value, '__len__'):
+      out.write_bigendian_int32(len(value))
+      for elem in value:
+        self._elem_coder.encode_to_stream(elem, out, True)
+    else:
+      # We don't know the size without traversing it so use a fixed size buffer
+      # and encode as many elements as possible into it before outputting
+      # the size followed by the elements.
+
+      # -1 to indicate that the length is not known.
+      out.write_bigendian_int32(-1)
+      # TODO: Need a fast version of this stream.
+      from slow_stream import BufferedElementCountingOutputStream
+      buffered_stream = BufferedElementCountingOutputStream(out)
+      for elem in value:
+        buffered_stream.mark_element_start()
+        self._elem_coder.encode_to_stream(elem, buffered_stream, True)
+      buffered_stream.finish()
+
 
   def decode_from_stream(self, in_stream, nested):
     size = in_stream.read_bigendian_int32()
-    return self._construct_from_sequence(
-        [self._elem_coder.decode_from_stream(in_stream, True)
-         for _ in range(size)])
+
+    if size >= 0:
+      elements = [self._elem_coder.decode_from_stream(in_stream, True)
+                  for _ in range(size)]
+    else:
+      elements = []
+      count = in_stream.read_var_int64()
+      while count > 0:
+        elements.append(self._elem_coder.decode_from_stream(in_stream, True))
+        count -= 1
+        if not count:
+          count = in_stream.read_var_int64()
+
+    return self._construct_from_sequence(elements)
 
   def estimate_size(self, value, nested=False):
     """Estimates the encoded size of the given value, in bytes."""
@@ -545,12 +572,16 @@ class SequenceCoderImpl(StreamCoderImpl):
       return estimated_size, [(value, self._elem_coder)]
     else:
       observables = []
+      count = 0
       for elem in value:
+        count += 1
         child_size, child_observables = (
             self._elem_coder.get_estimated_size_and_observables(
                 elem, nested=True))
         estimated_size += child_size
         observables += child_observables
+      # TODO(BEAM-1537): Update to use an accurate size estimation when the size
+      # of iterable in unknown, as we encode it differently.
       return estimated_size, observables
 
 
