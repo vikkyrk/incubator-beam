@@ -59,6 +59,10 @@ public interface FlinkPipelineOptions
   String getFlinkMaster();
   void setFlinkMaster(String value);
 
+  @Description("Yarn app id for the flink cluster")
+  String getYarnAppId();
+  void setYarnAppId(String value);
+
   @Description("The degree of parallelism to be used when distributing operations onto workers.")
   @Default.InstanceFactory(DefaultParallelismFactory.class)
   Integer getParallelism();

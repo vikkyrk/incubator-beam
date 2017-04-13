@@ -21,12 +21,23 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.CollectionEnvironment;
 import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.client.cli.CommandLineOptions;
+import org.apache.flink.configuration.ConfigConstants;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.AbstractStateBackend;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.yarn.YarnClusterClient;
+import org.apache.flink.yarn.cli.FlinkYarnSessionCli;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,6 +174,33 @@ class FlinkPipelineExecutionEnvironment {
     return flinkBatchEnv;
   }
 
+  private String getFlinkMaster(FlinkPipelineOptions pipelineOptions) {
+    if (pipelineOptions.getFlinkMaster() == null && pipelineOptions.getYarnAppId() != null) {
+      FlinkYarnSessionCli yarnSessionCli = new FlinkYarnSessionCli("", "");
+      Option APPLICATION_ID = new Option("id", "applicationId", true,
+          "Attach to running YARN session");
+      DefaultParser parser = new DefaultParser();
+      Options options = new Options().addOption(APPLICATION_ID);
+
+      try {
+
+        YarnClusterClient yarnFlinkClient = yarnSessionCli.retrieveCluster(
+            parser.parse(
+                options,
+                new String[]{"--id=" + pipelineOptions.getYarnAppId()}),
+            new Configuration());
+
+        Configuration flinkConf = yarnFlinkClient.getFlinkConfiguration();
+        String jobManagerHostPort = flinkConf.getString(ConfigConstants.JOB_MANAGER_IPC_ADDRESS_KEY, null) + ":" +
+            flinkConf.getInteger(ConfigConstants.JOB_MANAGER_IPC_PORT_KEY, 0);
+        return jobManagerHostPort;
+      } catch (ParseException e) {
+        throw new RuntimeException(e);
+      }
+    } else {
+      return pipelineOptions.getFlinkMaster();
+    }
+  }
   /**
    * If the submitted job is a stream processing job, this method creates the adequate
    * Flink {@link org.apache.flink.streaming.api.environment.StreamExecutionEnvironment} depending
