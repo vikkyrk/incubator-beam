@@ -15,26 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.beam.sdk.util;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.List;
-import org.apache.beam.sdk.testing.SerializableMatcher;
-
 /**
- * Bare-bones class for using sharded files.
+ * Sleeper interface to use for requesting the current thread to sleep as specified in
+ * {@link Thread#sleep(long)}.
  *
- * <p>For internal use only; used only in SDK tests. Must be {@link Serializable} so it can be
- * shipped as a {@link SerializableMatcher}.
+ * <p>
+ * The default implementation can be accessed at {@link #DEFAULT}. Primarily used for testing.
+ * </p>
  */
-public interface ShardedFile extends Serializable {
+public interface Sleeper {
 
   /**
-   * Reads the lines from all shards of this file using the provided {@link Sleeper} and {@link
-   * BackOff}.
+   * Causes the currently executing thread to sleep (temporarily cease execution) for the specified
+   * number of milliseconds as specified in {@link Thread#sleep(long)}.
+   *
+   * @param millis length of time to sleep in milliseconds
+   * @throws InterruptedException if any thread has interrupted the current thread
    */
-  List<String> readFilesWithRetries(Sleeper sleeper, BackOff backOff)
-      throws IOException, InterruptedException;
+  void sleep(long millis) throws InterruptedException;
+
+  /** Provides the default implementation based on {@link Thread#sleep(long)}. */
+  Sleeper DEFAULT = new Sleeper() {
+
+    public void sleep(long millis) throws InterruptedException {
+      Thread.sleep(millis);
+    }
+  };
 }

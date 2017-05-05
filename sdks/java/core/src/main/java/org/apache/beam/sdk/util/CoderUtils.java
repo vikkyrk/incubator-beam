@@ -163,6 +163,7 @@ public final class CoderUtils {
   public static <T> String encodeToBase64(Coder<T> coder, T value)
       throws CoderException {
     byte[] rawValue = encodeToByteArray(coder, value);
+    return
     return Base64.encodeBase64URLSafeString(rawValue);
   }
 
